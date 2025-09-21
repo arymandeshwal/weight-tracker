@@ -24,6 +24,7 @@ export default function Home() {
   const [isSaving, setIsSaving] = useState(false);
 
   const fetchWeights = async () => {
+    setIsLoading(true);
     try {
       const res = await fetch('/api/weights');
       if (!res.ok) {
@@ -42,9 +43,19 @@ export default function Home() {
     }
   };
 
+  // On initial load, fetch weights and try to load secret from localStorage
   useEffect(() => {
+    const storedSecret = localStorage.getItem('weightTrackerSecret');
+    if (storedSecret) {
+      setSecret(storedSecret);
+    }
     fetchWeights();
   }, []);
+
+  const handleForgetSecret = () => {
+    localStorage.removeItem('weightTrackerSecret');
+    setSecret('');
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -91,13 +102,15 @@ export default function Home() {
           setError('An unknown error occurred while saving.');
         }
         success = false;
-        break; 
+        break;
       }
     }
 
     if (success) {
       setArymanKg('');
       setAmalKg('');
+      // On successful save, store the validated secret
+      localStorage.setItem('weightTrackerSecret', secret);
       await fetchWeights(); // Refresh chart data
     }
     setIsSaving(false);
@@ -147,16 +160,26 @@ export default function Home() {
             </div>
             <div className="sm:col-span-2 md:col-span-3">
               <label htmlFor="secret" className="block text-sm font-medium text-gray-400">Secret Key</label>
-              <input
-                id="secret"
-                type="password"
-                value={secret}
-                onChange={(e) => setSecret(e.target.value)}
-                className="mt-1 block w-full bg-gray-700 border-gray-600 rounded-md shadow-sm p-2"
-                placeholder="Required to save data"
-              />
+              <div className="flex items-center space-x-2">
+                <input
+                  id="secret"
+                  type="password"
+                  value={secret}
+                  onChange={(e) => setSecret(e.target.value)}
+                  className="mt-1 block w-full bg-gray-700 border-gray-600 rounded-md shadow-sm p-2"
+                  placeholder="Required to save data"
+                />
+                <button
+                  type="button"
+                  onClick={handleForgetSecret}
+                  className="mt-1 px-3 py-2 text-sm font-medium text-gray-400 bg-gray-700 rounded-md hover:bg-gray-600"
+                  title="Forget the saved secret key"
+                >
+                  Forget
+                </button>
+              </div>
             </div>
-            
+
             {/* Button */}
             <div className="sm:col-span-2 md:col-span-3 text-center">
               <button
