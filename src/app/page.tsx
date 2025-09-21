@@ -29,10 +29,14 @@ export default function Home() {
       if (!res.ok) {
         throw new Error('Failed to fetch weights');
       }
-      const data = await res.json();
+      const data: WeightEntry[] = await res.json();
       setWeights(data);
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err) {
+      if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError('An unknown error occurred');
+      }
     } finally {
       setIsLoading(false);
     }
@@ -80,8 +84,12 @@ export default function Home() {
           const result = await res.json();
           throw new Error(result.error || 'Failed to save entry.');
         }
-      } catch (err: any) {
-        setError(err.message);
+      } catch (err) {
+        if (err instanceof Error) {
+          setError(err.message);
+        } else {
+          setError('An unknown error occurred while saving.');
+        }
         success = false;
         break; 
       }
