@@ -1,103 +1,178 @@
-import Image from "next/image";
+'use client';
+
+import { useState, useEffect } from 'react';
+import WeightChart from '@/components/WeightChart';
+import { type WeightEntry } from '@/components/types';
+
+// Helper to get today's date in YYYY-MM-DD format
+const getToday = () => {
+  const date = new Date();
+  const year = date.getFullYear();
+  const month = (date.getMonth() + 1).toString().padStart(2, '0');
+  const day = date.getDate().toString().padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
 
 export default function Home() {
-  return (
-    <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+  const [weights, setWeights] = useState<WeightEntry[]>([]);
+  const [secret, setSecret] = useState('');
+  const [arymanKg, setArymanKg] = useState('');
+  const [amalKg, setAmalKg] = useState('');
+  const [date, setDate] = useState(getToday());
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+  const fetchWeights = async () => {
+    try {
+      const res = await fetch('/api/weights');
+      if (!res.ok) {
+        throw new Error('Failed to fetch weights');
+      }
+      const data = await res.json();
+      setWeights(data);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchWeights();
+  }, []);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!secret) {
+      setError('Secret Key is required to save data.');
+      return;
+    }
+    if (!arymanKg && !amalKg) {
+      setError('Enter a weight for at least one person.');
+      return;
+    }
+
+    setIsSaving(true);
+    setError(null);
+
+    const entriesToSave = [];
+    if (arymanKg) {
+      entriesToSave.push({ who: 'Aryman', date, kg: parseFloat(arymanKg) });
+    }
+    if (amalKg) {
+      entriesToSave.push({ who: 'Amal', date, kg: parseFloat(amalKg) });
+    }
+
+    let success = true;
+    for (const entry of entriesToSave) {
+      try {
+        const res = await fetch('/api/weights', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${secret}`,
+          },
+          body: JSON.stringify(entry),
+        });
+
+        if (!res.ok) {
+          const result = await res.json();
+          throw new Error(result.error || 'Failed to save entry.');
+        }
+      } catch (err: any) {
+        setError(err.message);
+        success = false;
+        break; 
+      }
+    }
+
+    if (success) {
+      setArymanKg('');
+      setAmalKg('');
+      await fetchWeights(); // Refresh chart data
+    }
+    setIsSaving(false);
+  };
+
+  return (
+    <main className="flex flex-col items-center min-h-screen p-4 sm:p-8 md:p-12 bg-gray-900 text-white">
+      <div className="w-full max-w-4xl">
+        <h1 className="text-3xl sm:text-4xl font-bold text-center mb-6">
+          Weight Trends: Aryman & Amal
+        </h1>
+
+        <div className="bg-gray-800 p-6 rounded-lg shadow-lg mb-8">
+          <form onSubmit={handleSubmit} className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 items-end">
+            {/* Inputs */}
+            <div className="col-span-1">
+              <label htmlFor="aryman" className="block text-sm font-medium text-gray-400">Aryman (kg)</label>
+              <input
+                id="aryman"
+                type="number"
+                step="0.1"
+                value={arymanKg}
+                onChange={(e) => setArymanKg(e.target.value)}
+                className="mt-1 block w-full bg-gray-700 border-gray-600 rounded-md shadow-sm p-2 focus:ring-emerald-500 focus:border-emerald-500"
+              />
+            </div>
+            <div className="col-span-1">
+              <label htmlFor="amal" className="block text-sm font-medium text-gray-400">Amal (kg)</label>
+              <input
+                id="amal"
+                type="number"
+                step="0.1"
+                value={amalKg}
+                onChange={(e) => setAmalKg(e.target.value)}
+                className="mt-1 block w-full bg-gray-700 border-gray-600 rounded-md shadow-sm p-2 focus:ring-amber-500 focus:border-amber-500"
+              />
+            </div>
+            <div className="col-span-1">
+              <label htmlFor="date" className="block text-sm font-medium text-gray-400">Date</label>
+              <input
+                id="date"
+                type="date"
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+                className="mt-1 block w-full bg-gray-700 border-gray-600 rounded-md shadow-sm p-2"
+              />
+            </div>
+            <div className="sm:col-span-2 md:col-span-3">
+              <label htmlFor="secret" className="block text-sm font-medium text-gray-400">Secret Key</label>
+              <input
+                id="secret"
+                type="password"
+                value={secret}
+                onChange={(e) => setSecret(e.target.value)}
+                className="mt-1 block w-full bg-gray-700 border-gray-600 rounded-md shadow-sm p-2"
+                placeholder="Required to save data"
+              />
+            </div>
+            
+            {/* Button */}
+            <div className="sm:col-span-2 md:col-span-3 text-center">
+              <button
+                type="submit"
+                disabled={isSaving}
+                className="w-full md:w-auto inline-flex justify-center py-2 px-8 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 focus:ring-offset-gray-800 disabled:opacity-50"
+              >
+                {isSaving ? 'Saving...' : 'Save'}
+              </button>
+            </div>
+          </form>
+          {error && <p className="text-red-400 text-center mt-4">Error: {error}</p>}
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
-    </div>
+
+        <div className="bg-gray-800 p-4 rounded-lg shadow-lg">
+          {isLoading ? (
+            <div className="text-center py-16">
+              <p className="text-gray-400">Loading Chart...</p>
+            </div>
+          ) : (
+            <WeightChart data={weights} />
+          )}
+        </div>
+      </div>
+    </main>
   );
 }
